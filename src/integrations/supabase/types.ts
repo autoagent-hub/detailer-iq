@@ -14,13 +14,111 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          addon_ceramic: number
+          addon_pet_hair: number
+          addon_stains: number
+          business_name: string
+          created_at: string
+          id: string
+          sedan_base: number
+          slug: string
+          suv_base: number
+          telegram_auth_code: string
+          telegram_chat_id: string | null
+          truck_base: number
+        }
+        Insert: {
+          addon_ceramic?: number
+          addon_pet_hair?: number
+          addon_stains?: number
+          business_name?: string
+          created_at?: string
+          id: string
+          sedan_base?: number
+          slug: string
+          suv_base?: number
+          telegram_auth_code?: string
+          telegram_chat_id?: string | null
+          truck_base?: number
+        }
+        Update: {
+          addon_ceramic?: number
+          addon_pet_hair?: number
+          addon_stains?: number
+          business_name?: string
+          created_at?: string
+          id?: string
+          sedan_base?: number
+          slug?: string
+          suv_base?: number
+          telegram_auth_code?: string
+          telegram_chat_id?: string | null
+          truck_base?: number
+        }
+        Relationships: []
+      }
+      quotes: {
+        Row: {
+          addons: string[]
+          created_at: string
+          customer_name: string
+          customer_phone: string
+          detailer_id: string
+          estimated_price: number
+          id: string
+          vehicle_type: string
+        }
+        Insert: {
+          addons?: string[]
+          created_at?: string
+          customer_name: string
+          customer_phone: string
+          detailer_id: string
+          estimated_price: number
+          id?: string
+          vehicle_type: string
+        }
+        Update: {
+          addons?: string[]
+          created_at?: string
+          customer_name?: string
+          customer_phone?: string
+          detailer_id?: string
+          estimated_price?: number
+          id?: string
+          vehicle_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_detailer_id_fkey"
+            columns: ["detailer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_public_pricing: {
+        Args: { _slug: string }
+        Returns: {
+          addon_ceramic: number
+          addon_pet_hair: number
+          addon_stains: number
+          business_name: string
+          id: string
+          sedan_base: number
+          slug: string
+          suv_base: number
+          truck_base: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
