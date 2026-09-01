@@ -23,6 +23,7 @@ export type Database = {
           created_at: string
           id: string
           sedan_base: number
+          services: Json
           slug: string
           suv_base: number
           telegram_auth_code: string
@@ -37,6 +38,7 @@ export type Database = {
           created_at?: string
           id: string
           sedan_base?: number
+          services?: Json
           slug: string
           suv_base?: number
           telegram_auth_code?: string
@@ -51,6 +53,7 @@ export type Database = {
           created_at?: string
           id?: string
           sedan_base?: number
+          services?: Json
           slug?: string
           suv_base?: number
           telegram_auth_code?: string
@@ -114,6 +117,7 @@ export type Database = {
           business_name: string
           id: string
           sedan_base: number
+          services: Json
           slug: string
           suv_base: number
           truck_base: number
