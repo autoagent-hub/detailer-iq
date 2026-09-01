@@ -27,7 +27,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { addonLabel, money, vehicleLabel } from "@/lib/pricing";
+import { Switch } from "@/components/ui/switch";
+import {
+  addonLabel,
+  money,
+  parseServices,
+  vehicleLabel,
+  type ServiceItem,
+} from "@/lib/pricing";
 
 const TELEGRAM_BOT = "QuoteFlowAlertsBot";
 
@@ -35,9 +42,6 @@ const PRICE_FIELDS = [
   { key: "sedan_base", label: "Sedan Base" },
   { key: "suv_base", label: "SUV Base" },
   { key: "truck_base", label: "Truck Base" },
-  { key: "addon_pet_hair", label: "Pet Hair Add-on" },
-  { key: "addon_stains", label: "Stain Add-on" },
-  { key: "addon_ceramic", label: "Ceramic Add-on" },
 ] as const;
 
 type PriceKey = (typeof PRICE_FIELDS)[number]["key"];
@@ -408,7 +412,7 @@ function QuoteHistory({ quotes }: { quotes: Quote[] }) {
                     </TableCell>
                     <TableCell>{vehicleLabel(q.vehicle_type)}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {q.addons.length ? q.addons.map(addonLabel).join(", ") : "—"}
+                      {q.addons.length ? q.addons.map((a) => addonLabel(a)).join(", ") : "—"}
                     </TableCell>
                     <TableCell className="text-right font-semibold">
                       {money(Number(q.estimated_price))}
