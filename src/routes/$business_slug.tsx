@@ -12,11 +12,10 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { sendQuoteAlert } from "@/lib/telegram.functions";
 import {
-  ADDONS,
   VEHICLES,
   calculateEstimate,
   money,
-  type AddonKey,
+  parseServices,
   type Pricing,
   type VehicleType,
 } from "@/lib/pricing";
@@ -39,12 +38,17 @@ export const Route = createFileRoute("/$business_slug")({
   component: QuoteForm,
 });
 
-type PublicProfile = Pricing & { id: string; business_name: string; slug: string };
+type PublicProfile = Pricing & {
+  id: string;
+  business_name: string;
+  slug: string;
+  services: unknown;
+};
 
 function QuoteForm() {
   const { business_slug } = Route.useParams();
   const [vehicle, setVehicle] = useState<VehicleType | null>(null);
-  const [addons, setAddons] = useState<AddonKey[]>([]);
+  const [addons, setAddons] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -59,12 +63,17 @@ function QuoteForm() {
     },
   });
 
-  const estimate = useMemo(
-    () => (profile ? calculateEstimate(profile, vehicle, addons) : 0),
-    [profile, vehicle, addons],
+  const services = useMemo(
+    () => parseServices(profile?.services).filter((s) => s.enabled),
+    [profile],
   );
 
-  const toggleAddon = (key: AddonKey) =>
+  const estimate = useMemo(
+    () => (profile ? calculateEstimate(profile, vehicle, services, addons) : 0),
+    [profile, vehicle, services, addons],
+  );
+
+  const toggleAddon = (key: string) =>
     setAddons((prev) => (prev.includes(key) ? prev.filter((a) => a !== key) : [...prev, key]));
 
   const submit = async (e: React.FormEvent) => {
@@ -88,7 +97,7 @@ function QuoteForm() {
           customerName: name.trim(),
           customerPhone: phone.trim(),
           vehicle: VEHICLES.find((v) => v.key === vehicle)!.label,
-          addons: addons.map((a) => ADDONS.find((x) => x.key === a)!.label),
+          addons: addons.map((a) => services.find((s) => s.key === a)?.label ?? a),
           estimate,
         },
       }).catch(() => undefined);
@@ -198,7 +207,7 @@ function QuoteForm() {
         <section>
           <StepLabel step={2} title="Vehicle condition & extras" />
           <div className="mt-3 space-y-2.5">
-            {ADDONS.map((a) => {
+            {services.map((a) => {
               const active = addons.includes(a.key);
               return (
                 <label
@@ -215,7 +224,7 @@ function QuoteForm() {
                     <span className="mt-0.5 block text-xs text-muted-foreground">{a.sub}</span>
                   </span>
                   <span className="font-display text-sm font-bold text-primary">
-                    +{money(Number(profile[a.priceKey]))}
+                    +{money(a.price)}
                   </span>
                 </label>
               );
