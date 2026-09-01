@@ -185,6 +185,7 @@ type Profile = {
   slug: string;
   telegram_chat_id: string | null;
   telegram_auth_code: string;
+  services: unknown;
 } & Record<PriceKey, number>;
 
 function PricingCard({ profile }: { profile: Profile }) {
@@ -193,12 +194,25 @@ function PricingCard({ profile }: { profile: Profile }) {
     Object.fromEntries(PRICE_FIELDS.map((f) => [f.key, String(profile[f.key])])),
   );
   const [businessName, setBusinessName] = useState(profile.business_name);
+  const [services, setServices] = useState<ServiceItem[]>(() => parseServices(profile.services));
+
+  const activeCount = services.filter((s) => s.enabled).length;
 
   const save = useMutation({
     mutationFn: async () => {
-      const patch: Record<string, number | string> = { business_name: businessName.trim() };
-      for (const f of PRICE_FIELDS) patch[f.key] = Number(values[f.key]) || 0;
-      const { error } = await supabase.from("profiles").update(patch).eq("id", profile.id);
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          business_name: businessName.trim(),
+          sedan_base: Number(values["sedan_base"]) || 0,
+          suv_base: Number(values["suv_base"]) || 0,
+          truck_base: Number(values["truck_base"]) || 0,
+          addon_pet_hair: Number(services.find((s) => s.key === "pet_hair")?.price) || 0,
+          addon_stains: Number(services.find((s) => s.key === "stains")?.price) || 0,
+          addon_ceramic: Number(services.find((s) => s.key === "ceramic")?.price) || 0,
+          services: services.map((s) => ({ ...s, price: Number(s.price) || 0 })),
+        })
+        .eq("id", profile.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -213,7 +227,7 @@ function PricingCard({ profile }: { profile: Profile }) {
       <CardHeader>
         <CardTitle className="text-base">Price configuration</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <div className="space-y-1.5">
           <Label htmlFor="business_name">Business name</Label>
           <Input
@@ -222,22 +236,85 @@ function PricingCard({ profile }: { profile: Profile }) {
             onChange={(e) => setBusinessName(e.target.value)}
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {PRICE_FIELDS.map((f) => (
-            <div key={f.key} className="space-y-1.5">
-              <Label htmlFor={f.key}>{f.label} ($)</Label>
-              <Input
-                id={f.key}
-                type="number"
-                min={0}
-                step={1}
-                inputMode="numeric"
-                value={values[f.key] ?? ""}
-                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-              />
-            </div>
-          ))}
+
+        <div className="space-y-3">
+          <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+            Base price by vehicle
+          </p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {PRICE_FIELDS.map((f) => (
+              <div key={f.key} className="space-y-1.5">
+                <Label htmlFor={f.key}>{f.label} ($)</Label>
+                <Input
+                  id={f.key}
+                  type="number"
+                  min={0}
+                  step={1}
+                  inputMode="numeric"
+                  value={values[f.key] ?? ""}
+                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
         </div>
+
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+              Detailing services & add-ons
+            </p>
+            <Badge variant="secondary">{activeCount} live on your form</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Every common service is preloaded. Adjust the rate or switch off anything you don't
+            offer.
+          </p>
+          <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+            {services.map((s, i) => (
+              <div
+                key={s.key}
+                className={`flex items-center gap-3 p-3.5 ${s.enabled ? "" : "opacity-55"}`}
+              >
+                <Switch
+                  checked={s.enabled}
+                  aria-label={`Offer ${s.label}`}
+                  onCheckedChange={(checked) =>
+                    setServices((prev) =>
+                      prev.map((item, idx) => (idx === i ? { ...item, enabled: checked } : item)),
+                    )
+                  }
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">{s.label}</span>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                    {s.sub}
+                  </span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-sm text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={1}
+                    inputMode="numeric"
+                    aria-label={`${s.label} price`}
+                    className="w-24"
+                    value={String(s.price)}
+                    onChange={(e) =>
+                      setServices((prev) =>
+                        prev.map((item, idx) =>
+                          idx === i ? { ...item, price: Number(e.target.value) || 0 } : item,
+                        ),
+                      )
+                    }
+                  />
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <Button variant="hero" size="lg" disabled={save.isPending} onClick={() => save.mutate()}>
           {save.isPending && <Loader2 className="size-4 animate-spin" />}
           Save pricing
@@ -246,6 +323,7 @@ function PricingCard({ profile }: { profile: Profile }) {
     </Card>
   );
 }
+
 
 function TelegramCard({ authCode, chatId }: { authCode: string; chatId: string | null }) {
   const connected = !!chatId;
