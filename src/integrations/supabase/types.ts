@@ -19,46 +19,79 @@ export type Database = {
           addon_ceramic: number
           addon_pet_hair: number
           addon_stains: number
+          allow_photos: boolean
           business_name: string
           created_at: string
+          currency: string
           id: string
+          logo_url: string | null
+          notify_include_notes: boolean
+          notify_include_photos: boolean
+          notify_telegram: boolean
+          packages: Json
+          phone: string
           sedan_base: number
           services: Json
           slug: string
           suv_base: number
+          tagline: string
           telegram_auth_code: string
           telegram_chat_id: string | null
+          timezone: string
           truck_base: number
+          vehicle_categories: Json
         }
         Insert: {
           addon_ceramic?: number
           addon_pet_hair?: number
           addon_stains?: number
+          allow_photos?: boolean
           business_name?: string
           created_at?: string
+          currency?: string
           id: string
+          logo_url?: string | null
+          notify_include_notes?: boolean
+          notify_include_photos?: boolean
+          notify_telegram?: boolean
+          packages?: Json
+          phone?: string
           sedan_base?: number
           services?: Json
           slug: string
           suv_base?: number
+          tagline?: string
           telegram_auth_code?: string
           telegram_chat_id?: string | null
+          timezone?: string
           truck_base?: number
+          vehicle_categories?: Json
         }
         Update: {
           addon_ceramic?: number
           addon_pet_hair?: number
           addon_stains?: number
+          allow_photos?: boolean
           business_name?: string
           created_at?: string
+          currency?: string
           id?: string
+          logo_url?: string | null
+          notify_include_notes?: boolean
+          notify_include_photos?: boolean
+          notify_telegram?: boolean
+          packages?: Json
+          phone?: string
           sedan_base?: number
           services?: Json
           slug?: string
           suv_base?: number
+          tagline?: string
           telegram_auth_code?: string
           telegram_chat_id?: string | null
+          timezone?: string
           truck_base?: number
+          vehicle_categories?: Json
         }
         Relationships: []
       }
@@ -66,31 +99,52 @@ export type Database = {
         Row: {
           addons: string[]
           created_at: string
+          currency: string
           customer_name: string
           customer_phone: string
           detailer_id: string
           estimated_price: number
           id: string
+          notes: string
+          photo_urls: string[]
+          service_key: string
+          service_label: string
+          service_price: number
+          vehicle_desc: string
           vehicle_type: string
         }
         Insert: {
           addons?: string[]
           created_at?: string
+          currency?: string
           customer_name: string
           customer_phone: string
           detailer_id: string
           estimated_price: number
           id?: string
+          notes?: string
+          photo_urls?: string[]
+          service_key?: string
+          service_label?: string
+          service_price?: number
+          vehicle_desc?: string
           vehicle_type: string
         }
         Update: {
           addons?: string[]
           created_at?: string
+          currency?: string
           customer_name?: string
           customer_phone?: string
           detailer_id?: string
           estimated_price?: number
           id?: string
+          notes?: string
+          photo_urls?: string[]
+          service_key?: string
+          service_label?: string
+          service_price?: number
+          vehicle_desc?: string
           vehicle_type?: string
         }
         Relationships: [
@@ -114,13 +168,20 @@ export type Database = {
           addon_ceramic: number
           addon_pet_hair: number
           addon_stains: number
+          allow_photos: boolean
           business_name: string
+          currency: string
           id: string
+          logo_url: string
+          packages: Json
+          phone: string
           sedan_base: number
           services: Json
           slug: string
           suv_base: number
+          tagline: string
           truck_base: number
+          vehicle_categories: Json
         }[]
       }
     }
