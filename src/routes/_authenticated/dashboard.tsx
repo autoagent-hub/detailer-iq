@@ -5,6 +5,7 @@ import {
   Check,
   Copy,
   ExternalLink,
+  Image as ImageIcon,
   Link2,
   Loader2,
   LogOut,
@@ -18,6 +19,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -29,22 +45,20 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
 import {
+  CURRENCIES,
+  TIMEZONES,
   addonLabel,
+  formatWhen,
   money,
+  parsePackages,
   parseServices,
+  parseVehicleCategories,
   vehicleLabel,
   type ServiceItem,
+  type VehicleCategory,
 } from "@/lib/pricing";
 
 const TELEGRAM_BOT = "QuoteFlowAlertsBot";
-
-const PRICE_FIELDS = [
-  { key: "sedan_base", label: "Sedan Base" },
-  { key: "suv_base", label: "SUV Base" },
-  { key: "truck_base", label: "Truck Base" },
-] as const;
-
-type PriceKey = (typeof PRICE_FIELDS)[number]["key"];
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -52,10 +66,16 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
       { title: "Detailer Dashboard — QuoteFlow" },
       {
         name: "description",
-        content: "Set your detailing prices, connect Telegram alerts and review incoming quotes.",
+        content:
+          "Set your detailing prices, vehicle categories, Telegram alerts and review incoming quote requests.",
       },
       { property: "og:title", content: "Detailer Dashboard — QuoteFlow" },
-      { property: "og:description", content: "Manage pricing, Telegram alerts and quote history." },
+      {
+        property: "og:description",
+        content: "Manage pricing, branding, Telegram alerts and quote history.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: Dashboard,
@@ -68,6 +88,45 @@ function slugify(value: string) {
     .replace(/^-|-$/g, "")
     .slice(0, 40);
 }
+
+type Profile = {
+  id: string;
+  business_name: string;
+  slug: string;
+  tagline: string;
+  phone: string;
+  logo_url: string | null;
+  currency: string;
+  timezone: string;
+  notify_telegram: boolean;
+  notify_include_photos: boolean;
+  notify_include_notes: boolean;
+  allow_photos: boolean;
+  telegram_chat_id: string | null;
+  telegram_auth_code: string;
+  services: unknown;
+  packages: unknown;
+  vehicle_categories: unknown;
+  sedan_base: number;
+  suv_base: number;
+  truck_base: number;
+};
+
+type Quote = {
+  id: string;
+  customer_name: string;
+  customer_phone: string;
+  vehicle_type: string;
+  vehicle_desc: string;
+  service_label: string;
+  service_price: number;
+  addons: string[];
+  estimated_price: number;
+  notes: string;
+  photo_urls: string[];
+  currency: string;
+  created_at: string;
+};
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -85,7 +144,7 @@ function Dashboard() {
         .eq("id", uid)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      return data as Profile | null;
     },
   });
 
@@ -97,9 +156,9 @@ function Dashboard() {
         .from("quotes")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(25);
+        .limit(50);
       if (error) throw error;
-      return data;
+      return (data ?? []) as Quote[];
     },
   });
 
@@ -140,12 +199,41 @@ function Dashboard() {
               <h1 className="text-2xl font-bold">{profile.business_name}</h1>
               <PublicLink slug={profile.slug} />
             </div>
-            <PricingCard profile={profile} />
-            <TelegramCard
-              authCode={profile.telegram_auth_code}
-              chatId={profile.telegram_chat_id}
-            />
-            <QuoteHistory quotes={quotes ?? []} />
+
+            <Tabs defaultValue="requests">
+              <TabsList className="w-full overflow-x-auto">
+                <TabsTrigger value="requests">Requests</TabsTrigger>
+                <TabsTrigger value="account">Account</TabsTrigger>
+                <TabsTrigger value="pricing">Pricing</TabsTrigger>
+                <TabsTrigger value="alerts">Alerts</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="requests" className="mt-5">
+                <QuoteHistory
+                  quotes={quotes ?? []}
+                  currency={profile.currency}
+                  timezone={profile.timezone}
+                  services={parseServices(profile.services)}
+                  categories={parseVehicleCategories(profile.vehicle_categories)}
+                />
+              </TabsContent>
+
+              <TabsContent value="account" className="mt-5 space-y-5">
+                <BusinessProfileCard profile={profile} />
+              </TabsContent>
+
+              <TabsContent value="pricing" className="mt-5 space-y-5">
+                <PricingCard profile={profile} />
+              </TabsContent>
+
+              <TabsContent value="alerts" className="mt-5 space-y-5">
+                <TelegramCard
+                  authCode={profile.telegram_auth_code}
+                  chatId={profile.telegram_chat_id}
+                />
+                <NotificationSettingsCard profile={profile} />
+              </TabsContent>
+            </Tabs>
           </>
         ) : (
           <Onboarding />
@@ -183,132 +271,263 @@ function PublicLink({ slug }: { slug: string }) {
   );
 }
 
-type Profile = {
-  id: string;
-  business_name: string;
-  slug: string;
-  telegram_chat_id: string | null;
-  telegram_auth_code: string;
-  services: unknown;
-} & Record<PriceKey, number>;
-
-function PricingCard({ profile }: { profile: Profile }) {
+function useProfileUpdate(onDone: string) {
   const queryClient = useQueryClient();
-  const [values, setValues] = useState<Record<string, string>>(
-    Object.fromEntries(PRICE_FIELDS.map((f) => [f.key, String(profile[f.key])])),
-  );
-  const [businessName, setBusinessName] = useState(profile.business_name);
-  const [services, setServices] = useState<ServiceItem[]>(() => parseServices(profile.services));
-
-  const activeCount = services.filter((s) => s.enabled).length;
-
-  const save = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          business_name: businessName.trim(),
-          sedan_base: Number(values["sedan_base"]) || 0,
-          suv_base: Number(values["suv_base"]) || 0,
-          truck_base: Number(values["truck_base"]) || 0,
-          addon_pet_hair: Number(services.find((s) => s.key === "pet_hair")?.price) || 0,
-          addon_stains: Number(services.find((s) => s.key === "stains")?.price) || 0,
-          addon_ceramic: Number(services.find((s) => s.key === "ceramic")?.price) || 0,
-          services: services.map((s) => ({ ...s, price: Number(s.price) || 0 })),
-        })
-        .eq("id", profile.id);
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown> & { id: string }) => {
+      const { id, ...rest } = payload;
+      const { error } = await supabase.from("profiles").update(rest).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Pricing saved");
+      toast.success(onDone);
       void queryClient.invalidateQueries({ queryKey: ["profile"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
+}
+
+function BusinessProfileCard({ profile }: { profile: Profile }) {
+  const [form, setForm] = useState({
+    business_name: profile.business_name,
+    slug: profile.slug,
+    tagline: profile.tagline ?? "",
+    phone: profile.phone ?? "",
+    logo_url: profile.logo_url ?? "",
+    currency: profile.currency,
+    timezone: profile.timezone,
+  });
+  const save = useProfileUpdate("Business profile saved");
 
   return (
     <Card className="shadow-card">
       <CardHeader>
-        <CardTitle className="text-base">Price configuration</CardTitle>
+        <CardTitle className="text-base">Business profile</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="business_name">Business name</Label>
+            <Input
+              id="business_name"
+              value={form.business_name}
+              onChange={(e) => setForm((f) => ({ ...f, business_name: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="slug">Public link</Label>
+            <Input
+              id="slug"
+              value={form.slug}
+              onChange={(e) => setForm((f) => ({ ...f, slug: slugify(e.target.value) }))}
+            />
+            <p className="text-xs text-muted-foreground">/{form.slug || "your-link"}</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="phone">Business phone</Label>
+            <Input
+              id="phone"
+              value={form.phone}
+              inputMode="tel"
+              placeholder="+1 555 010 2020"
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="logo_url">Logo URL</Label>
+            <Input
+              id="logo_url"
+              value={form.logo_url}
+              placeholder="https://..."
+              onChange={(e) => setForm((f) => ({ ...f, logo_url: e.target.value }))}
+            />
+          </div>
+        </div>
+
         <div className="space-y-1.5">
-          <Label htmlFor="business_name">Business name</Label>
-          <Input
-            id="business_name"
-            value={businessName}
-            onChange={(e) => setBusinessName(e.target.value)}
+          <Label htmlFor="tagline">Tagline</Label>
+          <Textarea
+            id="tagline"
+            rows={2}
+            value={form.tagline}
+            placeholder="Showroom shine, at your driveway."
+            onChange={(e) => setForm((f) => ({ ...f, tagline: e.target.value }))}
           />
         </div>
 
-        <div className="space-y-3">
-          <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-            Base price by vehicle
-          </p>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {PRICE_FIELDS.map((f) => (
-              <div key={f.key} className="space-y-1.5">
-                <Label htmlFor={f.key}>{f.label} ($)</Label>
-                <Input
-                  id={f.key}
-                  type="number"
-                  min={0}
-                  step={1}
-                  inputMode="numeric"
-                  value={values[f.key] ?? ""}
-                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                />
-              </div>
-            ))}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>Currency</Label>
+            <Select
+              value={form.currency}
+              onValueChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCIES.map((c) => (
+                  <SelectItem key={c.code} value={c.code}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Time zone</Label>
+            <Select
+              value={form.timezone}
+              onValueChange={(v) => setForm((f) => ({ ...f, timezone: v }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Time zone" />
+              </SelectTrigger>
+              <SelectContent>
+                {TIMEZONES.map((tz) => (
+                  <SelectItem key={tz} value={tz}>
+                    {tz.replace(/_/g, " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-              Detailing services & add-ons
-            </p>
-            <Badge variant="secondary">{activeCount} live on your form</Badge>
-          </div>
+        <Button
+          variant="hero"
+          size="lg"
+          disabled={save.isPending || !form.business_name.trim() || !form.slug}
+          onClick={() =>
+            save.mutate({
+              id: profile.id,
+              business_name: form.business_name.trim(),
+              slug: form.slug,
+              tagline: form.tagline.trim(),
+              phone: form.phone.trim(),
+              logo_url: form.logo_url.trim() || null,
+              currency: form.currency,
+              timezone: form.timezone,
+            })
+          }
+        >
+          {save.isPending && <Loader2 className="size-4 animate-spin" />}
+          Save profile
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ItemRows({
+  items,
+  currency,
+  unitLabel,
+  onChange,
+}: {
+  items: ServiceItem[];
+  currency: string;
+  unitLabel: string;
+  onChange: (next: ServiceItem[]) => void;
+}) {
+  return (
+    <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+      {items.map((s, i) => (
+        <div
+          key={s.key}
+          className={`flex items-center gap-3 p-3.5 ${s.enabled ? "" : "opacity-55"}`}
+        >
+          <Switch
+            checked={s.enabled}
+            aria-label={`Offer ${s.label}`}
+            onCheckedChange={(checked) =>
+              onChange(items.map((item, idx) => (idx === i ? { ...item, enabled: checked } : item)))
+            }
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold">{s.label}</span>
+            <span className="mt-0.5 block truncate text-xs text-muted-foreground">{s.sub}</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">{unitLabel}</span>
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              inputMode="numeric"
+              aria-label={`${s.label} price in ${currency}`}
+              className="w-24"
+              value={String(s.price)}
+              onChange={(e) =>
+                onChange(
+                  items.map((item, idx) =>
+                    idx === i ? { ...item, price: Number(e.target.value) || 0 } : item,
+                  ),
+                )
+              }
+            />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PricingCard({ profile }: { profile: Profile }) {
+  const [packages, setPackages] = useState<ServiceItem[]>(() => parsePackages(profile.packages));
+  const [addons, setAddons] = useState<ServiceItem[]>(() => parseServices(profile.services));
+  const [categories, setCategories] = useState<VehicleCategory[]>(() =>
+    parseVehicleCategories(profile.vehicle_categories),
+  );
+  const save = useProfileUpdate("Pricing saved");
+
+  return (
+    <>
+      <Card className="shadow-card">
+        <CardHeader className="flex-row items-center justify-between gap-2">
+          <CardTitle className="text-base">Vehicle categories</CardTitle>
+          <Badge variant="secondary">
+            {categories.filter((c) => c.enabled).length} live
+          </Badge>
+        </CardHeader>
+        <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Every common service is preloaded. Adjust the rate or switch off anything you don't
-            offer.
+            The uplift is added to the selected service price. Use a negative number to discount.
           </p>
           <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
-            {services.map((s, i) => (
+            {categories.map((c, i) => (
               <div
-                key={s.key}
-                className={`flex items-center gap-3 p-3.5 ${s.enabled ? "" : "opacity-55"}`}
+                key={c.key}
+                className={`flex items-center gap-3 p-3.5 ${c.enabled ? "" : "opacity-55"}`}
               >
                 <Switch
-                  checked={s.enabled}
-                  aria-label={`Offer ${s.label}`}
+                  checked={c.enabled}
+                  aria-label={`Offer ${c.label}`}
                   onCheckedChange={(checked) =>
-                    setServices((prev) =>
+                    setCategories((prev) =>
                       prev.map((item, idx) => (idx === i ? { ...item, enabled: checked } : item)),
                     )
                   }
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold">{s.label}</span>
+                  <span className="block truncate text-sm font-semibold">{c.label}</span>
                   <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                    {s.sub}
+                    {c.sub}
                   </span>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="text-sm text-muted-foreground">$</span>
+                  <span className="text-xs text-muted-foreground">uplift</span>
                   <Input
                     type="number"
-                    min={0}
                     step={1}
                     inputMode="numeric"
-                    aria-label={`${s.label} price`}
+                    aria-label={`${c.label} uplift`}
                     className="w-24"
-                    value={String(s.price)}
+                    value={String(c.uplift)}
                     onChange={(e) =>
-                      setServices((prev) =>
+                      setCategories((prev) =>
                         prev.map((item, idx) =>
-                          idx === i ? { ...item, price: Number(e.target.value) || 0 } : item,
+                          idx === i ? { ...item, uplift: Number(e.target.value) || 0 } : item,
                         ),
                       )
                     }
@@ -317,17 +536,142 @@ function PricingCard({ profile }: { profile: Profile }) {
               </div>
             ))}
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <Button variant="hero" size="lg" disabled={save.isPending} onClick={() => save.mutate()}>
+      <Card className="shadow-card">
+        <CardHeader className="flex-row items-center justify-between gap-2">
+          <CardTitle className="text-base">Service packages</CardTitle>
+          <Badge variant="secondary">{packages.filter((p) => p.enabled).length} live</Badge>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            The main job the customer books. Prices are in {profile.currency}.
+          </p>
+          <ItemRows
+            items={packages}
+            currency={profile.currency}
+            unitLabel="price"
+            onChange={setPackages}
+          />
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-card">
+        <CardHeader className="flex-row items-center justify-between gap-2">
+          <CardTitle className="text-base">Add-ons</CardTitle>
+          <Badge variant="secondary">{addons.filter((a) => a.enabled).length} live</Badge>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Every common add-on is preloaded. Adjust the rate or switch off anything you don't
+            offer.
+          </p>
+          <ItemRows
+            items={addons}
+            currency={profile.currency}
+            unitLabel="price"
+            onChange={setAddons}
+          />
+        </CardContent>
+      </Card>
+
+      <Button
+        variant="hero"
+        size="lg"
+        disabled={save.isPending}
+        onClick={() =>
+          save.mutate({
+            id: profile.id,
+            packages: packages.map((p) => ({ ...p, price: Number(p.price) || 0 })),
+            services: addons.map((a) => ({ ...a, price: Number(a.price) || 0 })),
+            vehicle_categories: categories.map((c) => ({ ...c, uplift: Number(c.uplift) || 0 })),
+            addon_pet_hair: Number(addons.find((a) => a.key === "pet_hair")?.price) || 0,
+            addon_stains: Number(addons.find((a) => a.key === "stains")?.price) || 0,
+            addon_ceramic: Number(addons.find((a) => a.key === "ceramic")?.price) || 0,
+            sedan_base: Number(packages.find((p) => p.key === "full_detail")?.price) || 0,
+            suv_base:
+              (Number(packages.find((p) => p.key === "full_detail")?.price) || 0) +
+              (Number(categories.find((c) => c.key === "suv")?.uplift) || 0),
+            truck_base:
+              (Number(packages.find((p) => p.key === "full_detail")?.price) || 0) +
+              (Number(categories.find((c) => c.key === "truck")?.uplift) || 0),
+          })
+        }
+      >
+        {save.isPending && <Loader2 className="size-4 animate-spin" />}
+        Save pricing
+      </Button>
+    </>
+  );
+}
+
+function NotificationSettingsCard({ profile }: { profile: Profile }) {
+  const [settings, setSettings] = useState({
+    notify_telegram: profile.notify_telegram,
+    notify_include_photos: profile.notify_include_photos,
+    notify_include_notes: profile.notify_include_notes,
+    allow_photos: profile.allow_photos,
+  });
+  const save = useProfileUpdate("Notification settings saved");
+
+  const rows: { key: keyof typeof settings; label: string; sub: string }[] = [
+    {
+      key: "notify_telegram",
+      label: "Telegram alerts",
+      sub: "Push every new request to your chat instantly",
+    },
+    {
+      key: "notify_include_photos",
+      label: "Include photos in alerts",
+      sub: "Send customer photos along with the alert",
+    },
+    {
+      key: "notify_include_notes",
+      label: "Include notes in alerts",
+      sub: "Send the customer's extra details",
+    },
+    {
+      key: "allow_photos",
+      label: "Allow photo uploads",
+      sub: "Let customers attach up to 5 photos on your form",
+    },
+  ];
+
+  return (
+    <Card className="shadow-card">
+      <CardHeader>
+        <CardTitle className="text-base">Notification settings</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+          {rows.map((r) => (
+            <div key={r.key} className="flex items-center gap-3 p-3.5">
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">{r.label}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{r.sub}</span>
+              </span>
+              <Switch
+                checked={settings[r.key]}
+                aria-label={r.label}
+                onCheckedChange={(checked) => setSettings((s) => ({ ...s, [r.key]: checked }))}
+              />
+            </div>
+          ))}
+        </div>
+        <Button
+          variant="hero"
+          size="lg"
+          disabled={save.isPending}
+          onClick={() => save.mutate({ id: profile.id, ...settings })}
+        >
           {save.isPending && <Loader2 className="size-4 animate-spin" />}
-          Save pricing
+          Save settings
         </Button>
       </CardContent>
     </Card>
   );
 }
-
 
 function TelegramCard({ authCode, chatId }: { authCode: string; chatId: string | null }) {
   const connected = !!chatId;
@@ -367,21 +711,83 @@ function TelegramCard({ authCode, chatId }: { authCode: string; chatId: string |
   );
 }
 
-type Quote = {
-  id: string;
-  customer_name: string;
-  customer_phone: string;
-  vehicle_type: string;
-  addons: string[];
-  estimated_price: number;
-  created_at: string;
-};
+function PhotoDialog({
+  paths,
+  customer,
+}: {
+  paths: string[];
+  customer: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [urls, setUrls] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
 
-function QuoteHistory({ quotes }: { quotes: Quote[] }) {
+  const load = async () => {
+    setOpen(true);
+    if (urls.length || loading) return;
+    setLoading(true);
+    const { data, error } = await supabase.storage
+      .from("quote-photos")
+      .createSignedUrls(paths, 60 * 60);
+    setLoading(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setUrls((data ?? []).map((d) => d.signedUrl).filter(Boolean));
+  };
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => void load()}>
+        <ImageIcon className="size-3.5" /> {paths.length}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Photos from {customer}</DialogTitle>
+          </DialogHeader>
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {urls.map((u) => (
+                <a key={u} href={u} target="_blank" rel="noreferrer">
+                  <img
+                    src={u}
+                    alt={`Vehicle photo from ${customer}`}
+                    loading="lazy"
+                    className="aspect-square w-full rounded-lg border border-border object-cover"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function QuoteHistory({
+  quotes,
+  currency,
+  timezone,
+  services,
+  categories,
+}: {
+  quotes: Quote[];
+  currency: string;
+  timezone: string;
+  services: ServiceItem[];
+  categories: VehicleCategory[];
+}) {
   return (
     <Card className="shadow-card">
       <CardHeader>
-        <CardTitle className="text-base">Quote history</CardTitle>
+        <CardTitle className="text-base">Quote requests</CardTitle>
       </CardHeader>
       <CardContent className="px-0 sm:px-6">
         {quotes.length === 0 ? (
@@ -396,8 +802,11 @@ function QuoteHistory({ quotes }: { quotes: Quote[] }) {
                   <TableHead>Customer</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Vehicle</TableHead>
+                  <TableHead>Service</TableHead>
                   <TableHead>Add-ons</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead>Notes</TableHead>
+                  <TableHead>Photos</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
                   <TableHead>When</TableHead>
                 </TableRow>
               </TableHeader>
@@ -410,15 +819,44 @@ function QuoteHistory({ quotes }: { quotes: Quote[] }) {
                         {q.customer_phone}
                       </a>
                     </TableCell>
-                    <TableCell>{vehicleLabel(q.vehicle_type)}</TableCell>
+                    <TableCell className="text-sm">
+                      <span className="block font-medium">
+                        {q.vehicle_desc || vehicleLabel(q.vehicle_type, categories)}
+                      </span>
+                      {q.vehicle_desc && (
+                        <span className="text-xs text-muted-foreground">
+                          {vehicleLabel(q.vehicle_type, categories)}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {q.service_label || "—"}
+                      {q.service_price ? (
+                        <span className="block text-xs text-muted-foreground">
+                          {money(Number(q.service_price), q.currency || currency)}
+                        </span>
+                      ) : null}
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {q.addons.length ? q.addons.map((a) => addonLabel(a)).join(", ") : "—"}
+                      {q.addons.length
+                        ? q.addons.map((a) => addonLabel(a, services)).join(", ")
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="max-w-[16rem] text-xs whitespace-pre-wrap text-muted-foreground">
+                      {q.notes?.trim() ? q.notes : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {q.photo_urls?.length ? (
+                        <PhotoDialog paths={q.photo_urls} customer={q.customer_name} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right font-semibold">
-                      {money(Number(q.estimated_price))}
+                      {money(Number(q.estimated_price), q.currency || currency)}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {new Date(q.created_at).toLocaleString()}
+                      {formatWhen(q.created_at, timezone)}
                     </TableCell>
                   </TableRow>
                 ))}
