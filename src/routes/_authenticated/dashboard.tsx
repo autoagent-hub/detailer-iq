@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import type { TablesUpdate } from "@/integrations/supabase/types";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -274,7 +276,7 @@ function PublicLink({ slug }: { slug: string }) {
 function useProfileUpdate(onDone: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: Record<string, unknown> & { id: string }) => {
+    mutationFn: async (payload: TablesUpdate<"profiles"> & { id: string }) => {
       const { id, ...rest } = payload;
       const { error } = await supabase.from("profiles").update(rest).eq("id", id);
       if (error) throw error;
@@ -734,7 +736,11 @@ function PhotoDialog({
       toast.error(error.message);
       return;
     }
-    setUrls((data ?? []).map((d) => d.signedUrl).filter(Boolean));
+    setUrls(
+      (data ?? [])
+        .map((d) => d.signedUrl)
+        .filter((u): u is string => !!u),
+    );
   };
 
   return (
