@@ -9,8 +9,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { COUNTRIES, composePhone, defaultCountryForCurrency } from "@/lib/countries";
 import { sendQuoteAlert } from "@/lib/telegram.functions";
+
 import {
   calculateQuote,
   money,
@@ -65,6 +74,8 @@ function QuoteForm() {
   const [photos, setPhotos] = useState<File[]>([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [countryChoice, setCountryChoice] = useState<string | null>(null);
+
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -79,6 +90,12 @@ function QuoteForm() {
   });
 
   const currency = profile?.currency || "USD";
+  const selectedCountry = useMemo(() => {
+    const found = COUNTRIES.find((c) => c.code === countryChoice);
+    return found ?? defaultCountryForCurrency(currency);
+  }, [countryChoice, currency]);
+  const fullPhone = composePhone(selectedCountry.dial, phone);
+
   const categories = useMemo(
     () => parseVehicleCategories(profile?.vehicle_categories).filter((c) => c.enabled),
     [profile],
@@ -143,7 +160,7 @@ function QuoteForm() {
       const { error } = await supabase.from("quotes").insert({
         detailer_id: profile.id,
         customer_name: name.trim(),
-        customer_phone: phone.trim(),
+        customer_phone: fullPhone,
         vehicle_type: categoryKey!,
         vehicle_desc: vehicleDesc.trim(),
         service_key: chosenPackage.key,
@@ -161,7 +178,7 @@ function QuoteForm() {
         data: {
           detailerId: profile.id,
           customerName: name.trim(),
-          customerPhone: phone.trim(),
+          customerPhone: fullPhone,
           vehicle: vehicleDesc.trim()
             ? `${vehicleDesc.trim()} (${chosenCategory?.label ?? ""})`
             : (chosenCategory?.label ?? ""),
@@ -216,7 +233,7 @@ function QuoteForm() {
         </span>
         <h1 className="mt-6 text-2xl font-bold">Request sent</h1>
         <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-          {profile.business_name} just got an alert with your details and will text or call {phone}{" "}
+          {profile.business_name} just got an alert with your details and will text or call {fullPhone}{" "}
           shortly.
         </p>
         <div className="mt-6 w-full max-w-sm rounded-xl border border-border bg-card p-5 text-left shadow-card">
@@ -456,17 +473,38 @@ function QuoteForm() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="phone">Phone number</Label>
-              <Input
-                id="phone"
-                required
-                type="tel"
-                inputMode="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="(555) 123-4567"
-                autoComplete="tel"
-              />
+              <div className="flex gap-2">
+                <Select value={selectedCountry.code} onValueChange={setCountryChoice}>
+                  <SelectTrigger className="w-[128px] shrink-0" aria-label="Country code">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {COUNTRIES.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        <span className="mr-1">{c.flag}</span>
+                        {c.dial}
+                        <span className="ml-1 text-muted-foreground">{c.code}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  id="phone"
+                  required
+                  type="tel"
+                  inputMode="tel"
+                  className="flex-1"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="555 123 4567"
+                  autoComplete="tel-national"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                We'll text or call you at {selectedCountry.dial} {phone.trim() || "…"}
+              </p>
             </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="notes">Notes (optional)</Label>
               <Textarea
