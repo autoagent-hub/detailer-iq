@@ -233,7 +233,7 @@ function QuoteForm() {
         </span>
         <h1 className="mt-6 text-2xl font-bold">Request sent</h1>
         <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-          {profile.business_name} just got an alert with your details and will text or call {phone}{" "}
+          {profile.business_name} just got an alert with your details and will text or call {fullPhone}{" "}
           shortly.
         </p>
         <div className="mt-6 w-full max-w-sm rounded-xl border border-border bg-card p-5 text-left shadow-card">
