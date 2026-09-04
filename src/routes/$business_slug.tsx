@@ -160,7 +160,7 @@ function QuoteForm() {
       const { error } = await supabase.from("quotes").insert({
         detailer_id: profile.id,
         customer_name: name.trim(),
-        customer_phone: phone.trim(),
+        customer_phone: fullPhone,
         vehicle_type: categoryKey!,
         vehicle_desc: vehicleDesc.trim(),
         service_key: chosenPackage.key,
@@ -178,7 +178,7 @@ function QuoteForm() {
         data: {
           detailerId: profile.id,
           customerName: name.trim(),
-          customerPhone: phone.trim(),
+          customerPhone: fullPhone,
           vehicle: vehicleDesc.trim()
             ? `${vehicleDesc.trim()} (${chosenCategory?.label ?? ""})`
             : (chosenCategory?.label ?? ""),
@@ -474,7 +474,7 @@ function QuoteForm() {
             <div className="space-y-1.5">
               <Label htmlFor="phone">Phone number</Label>
               <div className="flex gap-2">
-                <Select value={countryCode} onValueChange={setCountryCode}>
+                <Select value={selectedCountry.code} onValueChange={setCountryChoice}>
                   <SelectTrigger className="w-[128px] shrink-0" aria-label="Country code">
                     <SelectValue />
                   </SelectTrigger>
