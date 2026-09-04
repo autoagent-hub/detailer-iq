@@ -456,17 +456,38 @@ function QuoteForm() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="phone">Phone number</Label>
-              <Input
-                id="phone"
-                required
-                type="tel"
-                inputMode="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="(555) 123-4567"
-                autoComplete="tel"
-              />
+              <div className="flex gap-2">
+                <Select value={countryCode} onValueChange={setCountryCode}>
+                  <SelectTrigger className="w-[128px] shrink-0" aria-label="Country code">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {COUNTRIES.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        <span className="mr-1">{c.flag}</span>
+                        {c.dial}
+                        <span className="ml-1 text-muted-foreground">{c.code}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  id="phone"
+                  required
+                  type="tel"
+                  inputMode="tel"
+                  className="flex-1"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="555 123 4567"
+                  autoComplete="tel-national"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                We'll text or call you at {selectedCountry.dial} {phone.trim() || "…"}
+              </p>
             </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="notes">Notes (optional)</Label>
               <Textarea
