@@ -90,6 +90,12 @@ function QuoteForm() {
   });
 
   const currency = profile?.currency || "USD";
+  const selectedCountry = useMemo(() => {
+    const found = COUNTRIES.find((c) => c.code === countryChoice);
+    return found ?? defaultCountryForCurrency(currency);
+  }, [countryChoice, currency]);
+  const fullPhone = composePhone(selectedCountry.dial, phone);
+
   const categories = useMemo(
     () => parseVehicleCategories(profile?.vehicle_categories).filter((c) => c.enabled),
     [profile],
