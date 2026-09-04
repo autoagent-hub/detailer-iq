@@ -74,6 +74,8 @@ function QuoteForm() {
   const [photos, setPhotos] = useState<File[]>([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [countryChoice, setCountryChoice] = useState<string | null>(null);
+
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
