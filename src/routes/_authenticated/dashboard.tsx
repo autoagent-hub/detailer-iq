@@ -452,7 +452,7 @@ function EditableRows<F extends string, T extends BaseRow & Record<F, number>>({
   lockedKeys: string[];
   onChange: (next: T[]) => void;
 }) {
-  const patch = (i: number, changes: Partial<BaseRow & Record<F, number>>) =>
+  const patch = (i: number, changes: Record<string, unknown>) =>
     onChange(items.map((item, idx) => (idx === i ? ({ ...item, ...changes } as T) : item)));
 
   return (
