@@ -50,6 +50,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
 import {
   CURRENCIES,
+  DEFAULT_PACKAGES,
+  DEFAULT_SERVICES,
+  DEFAULT_VEHICLE_CATEGORIES,
   TIMEZONES,
   addonLabel,
   formatWhen,
