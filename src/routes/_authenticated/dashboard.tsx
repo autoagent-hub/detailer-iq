@@ -9,8 +9,10 @@ import {
   Link2,
   Loader2,
   LogOut,
+  Plus,
   Send,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,6 +50,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
 import {
   CURRENCIES,
+  DEFAULT_PACKAGES,
+  DEFAULT_SERVICES,
+  DEFAULT_VEHICLE_CATEGORIES,
   TIMEZONES,
   addonLabel,
   formatWhen,
@@ -421,56 +426,150 @@ function BusinessProfileCard({ profile }: { profile: Profile }) {
   );
 }
 
-function ItemRows({
+type BaseRow = { key: string; label: string; sub: string; enabled: boolean };
+
+function makeKey(label: string, taken: string[]): string {
+  const base =
+    label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 40) || "custom";
+  let key = base;
+  let n = 2;
+  while (taken.includes(key)) key = `${base}_${n++}`;
+  return key;
+}
+
+/** Editable list of items with a numeric field (price or uplift). */
+function EditableRows<F extends string, T extends BaseRow & Record<F, number>>({
   items,
-  currency,
+  field,
   unitLabel,
+  currency,
+  lockedKeys,
   onChange,
 }: {
-  items: ServiceItem[];
-  currency: string;
+  items: T[];
+  field: F;
   unitLabel: string;
-  onChange: (next: ServiceItem[]) => void;
+  currency: string;
+  lockedKeys: string[];
+  onChange: (next: T[]) => void;
 }) {
+  const patch = (i: number, changes: Record<string, unknown>) =>
+    onChange(items.map((item, idx) => (idx === i ? ({ ...item, ...changes } as T) : item)));
+
   return (
     <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
       {items.map((s, i) => (
-        <div
-          key={s.key}
-          className={`flex items-center gap-3 p-3.5 ${s.enabled ? "" : "opacity-55"}`}
-        >
-          <Switch
-            checked={s.enabled}
-            aria-label={`Offer ${s.label}`}
-            onCheckedChange={(checked) =>
-              onChange(items.map((item, idx) => (idx === i ? { ...item, enabled: checked } : item)))
-            }
-          />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold">{s.label}</span>
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">{s.sub}</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">{unitLabel}</span>
-            <Input
-              type="number"
-              min={0}
-              step={1}
-              inputMode="numeric"
-              aria-label={`${s.label} price in ${currency}`}
-              className="w-24"
-              value={String(s.price)}
-              onChange={(e) =>
-                onChange(
-                  items.map((item, idx) =>
-                    idx === i ? { ...item, price: Number(e.target.value) || 0 } : item,
-                  ),
-                )
-              }
+        <div key={s.key} className={`space-y-2 p-3.5 ${s.enabled ? "" : "opacity-55"}`}>
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={s.enabled}
+              aria-label={`Offer ${s.label}`}
+              onCheckedChange={(checked) => patch(i, { enabled: checked })}
             />
-          </span>
+            <Input
+              aria-label={`${s.label} name`}
+              className="h-9 min-w-0 flex-1 font-semibold"
+              value={s.label}
+              onChange={(e) => patch(i, { label: e.target.value })}
+            />
+            {lockedKeys.includes(s.key) ? null : (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Remove ${s.label}`}
+                onClick={() => onChange(items.filter((_, idx) => idx !== i))}
+              >
+                <Trash2 className="size-4 text-destructive" />
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              aria-label={`${s.label} description`}
+              placeholder="Short description customers will see"
+              className="h-9 min-w-0 flex-1 text-xs"
+              value={s.sub}
+              onChange={(e) => patch(i, { sub: e.target.value })}
+            />
+            <span className="flex shrink-0 items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">{unitLabel}</span>
+              <Input
+                type="number"
+                step={1}
+                inputMode="numeric"
+                aria-label={`${s.label} ${unitLabel} in ${currency}`}
+                className="h-9 w-24"
+                value={String(s[field])}
+                onChange={(e) =>
+                  patch(i, { [field]: Number(e.target.value) || 0 } as Record<F, number>)
+                }
+              />
+            </span>
+          </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function AddRowForm({
+  unitLabel,
+  onAdd,
+}: {
+  unitLabel: string;
+  onAdd: (row: { label: string; sub: string; amount: number }) => void;
+}) {
+  const [label, setLabel] = useState("");
+  const [sub, setSub] = useState("");
+  const [amount, setAmount] = useState("0");
+
+  const submit = () => {
+    if (!label.trim()) {
+      toast.error("Give it a name first");
+      return;
+    }
+    onAdd({ label: label.trim(), sub: sub.trim(), amount: Number(amount) || 0 });
+    setLabel("");
+    setSub("");
+    setAmount("0");
+  };
+
+  return (
+    <div className="space-y-2 rounded-xl border border-dashed border-border p-3.5">
+      <div className="flex gap-2">
+        <Input
+          aria-label="New item name"
+          placeholder="Name (e.g. Boat / Jet Ski)"
+          className="h-9 min-w-0 flex-1"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+        />
+        <Input
+          type="number"
+          step={1}
+          inputMode="numeric"
+          aria-label={`New item ${unitLabel}`}
+          className="h-9 w-24"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+      </div>
+      <div className="flex gap-2">
+        <Input
+          aria-label="New item description"
+          placeholder="Short description (optional)"
+          className="h-9 min-w-0 flex-1 text-xs"
+          value={sub}
+          onChange={(e) => setSub(e.target.value)}
+        />
+        <Button variant="outline" size="sm" className="shrink-0" onClick={submit}>
+          <Plus className="size-4" /> Add
+        </Button>
+      </div>
     </div>
   );
 }
@@ -482,6 +581,10 @@ function PricingCard({ profile }: { profile: Profile }) {
     parseVehicleCategories(profile.vehicle_categories),
   );
   const save = useProfileUpdate("Pricing saved");
+
+  const lockedPackages = DEFAULT_PACKAGES.map((p) => p.key);
+  const lockedAddons = DEFAULT_SERVICES.map((s) => s.key);
+  const lockedCategories = DEFAULT_VEHICLE_CATEGORIES.map((c) => c.key);
 
   return (
     <>
@@ -496,48 +599,29 @@ function PricingCard({ profile }: { profile: Profile }) {
           <p className="text-sm text-muted-foreground">
             The uplift is added to the selected service price. Use a negative number to discount.
           </p>
-          <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
-            {categories.map((c, i) => (
-              <div
-                key={c.key}
-                className={`flex items-center gap-3 p-3.5 ${c.enabled ? "" : "opacity-55"}`}
-              >
-                <Switch
-                  checked={c.enabled}
-                  aria-label={`Offer ${c.label}`}
-                  onCheckedChange={(checked) =>
-                    setCategories((prev) =>
-                      prev.map((item, idx) => (idx === i ? { ...item, enabled: checked } : item)),
-                    )
-                  }
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold">{c.label}</span>
-                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                    {c.sub}
-                  </span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground">uplift</span>
-                  <Input
-                    type="number"
-                    step={1}
-                    inputMode="numeric"
-                    aria-label={`${c.label} uplift`}
-                    className="w-24"
-                    value={String(c.uplift)}
-                    onChange={(e) =>
-                      setCategories((prev) =>
-                        prev.map((item, idx) =>
-                          idx === i ? { ...item, uplift: Number(e.target.value) || 0 } : item,
-                        ),
-                      )
-                    }
-                  />
-                </span>
-              </div>
-            ))}
-          </div>
+          <EditableRows
+            items={categories}
+            field="uplift"
+            unitLabel="uplift"
+            currency={profile.currency}
+            lockedKeys={lockedCategories}
+            onChange={setCategories}
+          />
+          <AddRowForm
+            unitLabel="uplift"
+            onAdd={({ label, sub, amount }) =>
+              setCategories((prev) => [
+                ...prev,
+                {
+                  key: makeKey(label, prev.map((p) => p.key)),
+                  label,
+                  sub,
+                  uplift: amount,
+                  enabled: true,
+                },
+              ])
+            }
+          />
         </CardContent>
       </Card>
 
@@ -550,11 +634,28 @@ function PricingCard({ profile }: { profile: Profile }) {
           <p className="text-sm text-muted-foreground">
             The main job the customer books. Prices are in {profile.currency}.
           </p>
-          <ItemRows
+          <EditableRows
             items={packages}
-            currency={profile.currency}
+            field="price"
             unitLabel="price"
+            currency={profile.currency}
+            lockedKeys={lockedPackages}
             onChange={setPackages}
+          />
+          <AddRowForm
+            unitLabel="price"
+            onAdd={({ label, sub, amount }) =>
+              setPackages((prev) => [
+                ...prev,
+                {
+                  key: makeKey(label, prev.map((p) => p.key)),
+                  label,
+                  sub,
+                  price: amount,
+                  enabled: true,
+                },
+              ])
+            }
           />
         </CardContent>
       </Card>
@@ -566,14 +667,31 @@ function PricingCard({ profile }: { profile: Profile }) {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Every common add-on is preloaded. Adjust the rate or switch off anything you don't
-            offer.
+            Every common add-on is preloaded. Rename, adjust the rate, switch off anything you don't
+            offer, or add your own below.
           </p>
-          <ItemRows
+          <EditableRows
             items={addons}
-            currency={profile.currency}
+            field="price"
             unitLabel="price"
+            currency={profile.currency}
+            lockedKeys={lockedAddons}
             onChange={setAddons}
+          />
+          <AddRowForm
+            unitLabel="price"
+            onAdd={({ label, sub, amount }) =>
+              setAddons((prev) => [
+                ...prev,
+                {
+                  key: makeKey(label, prev.map((p) => p.key)),
+                  label,
+                  sub,
+                  price: amount,
+                  enabled: true,
+                },
+              ])
+            }
           />
         </CardContent>
       </Card>
