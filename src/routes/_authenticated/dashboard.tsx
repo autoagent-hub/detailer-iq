@@ -9,8 +9,10 @@ import {
   Link2,
   Loader2,
   LogOut,
+  Plus,
   Send,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
