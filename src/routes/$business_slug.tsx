@@ -30,6 +30,9 @@ import {
 } from "@/lib/pricing";
 
 export const Route = createFileRoute("/$business_slug")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    test: search["test"] === "1" || search["test"] === true ? true : undefined,
+  }),
   head: ({ params }) => ({
     meta: [
       { title: `Get an instant detailing quote — QuoteFlow` },
