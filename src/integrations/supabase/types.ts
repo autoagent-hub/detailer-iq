@@ -105,6 +105,7 @@ export type Database = {
           detailer_id: string
           estimated_price: number
           id: string
+          is_test: boolean
           notes: string
           photo_urls: string[]
           service_key: string
@@ -122,6 +123,7 @@ export type Database = {
           detailer_id: string
           estimated_price: number
           id?: string
+          is_test?: boolean
           notes?: string
           photo_urls?: string[]
           service_key?: string
@@ -139,6 +141,7 @@ export type Database = {
           detailer_id?: string
           estimated_price?: number
           id?: string
+          is_test?: boolean
           notes?: string
           photo_urls?: string[]
           service_key?: string

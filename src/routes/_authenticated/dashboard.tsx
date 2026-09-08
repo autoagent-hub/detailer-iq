@@ -5,6 +5,7 @@ import {
   Check,
   Copy,
   ExternalLink,
+  FlaskConical,
   Image as ImageIcon,
   Link2,
   Loader2,
@@ -47,6 +48,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { sendQuoteAlert } from "@/lib/telegram.functions";
 import { Switch } from "@/components/ui/switch";
 import {
   CURRENCIES,
@@ -133,6 +135,7 @@ type Quote = {
   photo_urls: string[];
   currency: string;
   created_at: string;
+  is_test: boolean;
 };
 
 function Dashboard() {
@@ -213,6 +216,7 @@ function Dashboard() {
                 <TabsTrigger value="account">Account</TabsTrigger>
                 <TabsTrigger value="pricing">Pricing</TabsTrigger>
                 <TabsTrigger value="alerts">Alerts</TabsTrigger>
+                <TabsTrigger value="testing">Testing</TabsTrigger>
               </TabsList>
 
               <TabsContent value="requests" className="mt-5">
@@ -239,6 +243,10 @@ function Dashboard() {
                   chatId={profile.telegram_chat_id}
                 />
                 <NotificationSettingsCard profile={profile} />
+              </TabsContent>
+
+              <TabsContent value="testing" className="mt-5 space-y-5">
+                <TestingCard profile={profile} />
               </TabsContent>
             </Tabs>
           </>
@@ -270,7 +278,7 @@ function PublicLink({ slug }: { slug: string }) {
         <Copy className="size-3.5" /> Copy link
       </Button>
       <Button asChild variant="ghost" size="sm">
-        <Link to="/$business_slug" params={{ business_slug: slug }}>
+        <Link to="/$business_slug" params={{ business_slug: slug }} search={{}}>
           <ExternalLink className="size-3.5" /> Preview
         </Link>
       </Button>
@@ -908,13 +916,27 @@ function QuoteHistory({
   services: ServiceItem[];
   categories: VehicleCategory[];
 }) {
+  const [showTests, setShowTests] = useState(true);
+  const testCount = quotes.filter((q) => q.is_test).length;
+  const visible = showTests ? quotes : quotes.filter((q) => !q.is_test);
+
   return (
     <Card className="shadow-card">
-      <CardHeader>
+      <CardHeader className="flex-row items-center justify-between gap-3">
         <CardTitle className="text-base">Quote requests</CardTitle>
+        {testCount > 0 && (
+          <span className="flex items-center gap-2 text-xs text-muted-foreground">
+            Show my {testCount} test{testCount === 1 ? "" : "s"}
+            <Switch
+              checked={showTests}
+              aria-label="Show test requests"
+              onCheckedChange={setShowTests}
+            />
+          </span>
+        )}
       </CardHeader>
       <CardContent className="px-0 sm:px-6">
-        {quotes.length === 0 ? (
+        {visible.length === 0 ? (
           <p className="px-6 pb-2 text-sm text-muted-foreground sm:px-0">
             No requests yet. Share your quote link to start collecting leads.
           </p>
@@ -935,9 +957,16 @@ function QuoteHistory({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {quotes.map((q) => (
-                  <TableRow key={q.id}>
-                    <TableCell className="font-medium">{q.customer_name}</TableCell>
+                {visible.map((q) => (
+                  <TableRow key={q.id} className={q.is_test ? "opacity-70" : undefined}>
+                    <TableCell className="font-medium">
+                      {q.customer_name}
+                      {q.is_test && (
+                        <Badge variant="secondary" className="ml-2 align-middle">
+                          <FlaskConical className="size-3" /> TEST
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <a href={`tel:${q.customer_phone}`} className="text-primary hover:underline">
                         {q.customer_phone}
@@ -1058,6 +1087,99 @@ function Onboarding() {
           {create.isPending && <Loader2 className="size-4 animate-spin" />}
           Create my quote form
         </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TestingCard({ profile }: { profile: Profile }) {
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
+  const testUrl = `${origin}/${profile.slug}?test=1`;
+  const [sending, setSending] = useState(false);
+
+  const sendTest = async () => {
+    setSending(true);
+    try {
+      const result = await sendQuoteAlert({
+        data: {
+          detailerId: profile.id,
+          customerName: "Test Customer",
+          customerPhone: profile.phone || "+10000000000",
+          vehicle: "2023 Test Vehicle (Sedan / Coupe)",
+          service: { label: "Full Detail", price: 190 },
+          addons: [{ label: "Pet Hair Removal", price: 40 }],
+          estimate: 230,
+          notes: "This is a test alert sent from your dashboard.",
+          isTest: true,
+        },
+      });
+      if (result?.sent) {
+        toast.success("Test alert sent — check your Telegram chat.");
+      } else if (result?.reason === "not_connected") {
+        toast.error("Connect your Telegram bot first (Alerts tab).");
+      } else if (result?.reason === "muted") {
+        toast.error("Telegram alerts are switched off in your settings.");
+      } else {
+        toast.error("Could not send the test alert. Try again.");
+      }
+    } catch {
+      toast.error("Could not send the test alert. Try again.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Card className="shadow-card">
+      <CardHeader className="flex-row items-center justify-between gap-3">
+        <CardTitle className="text-base">Test your bot & quote link</CardTitle>
+        <Badge variant="secondary">
+          <FlaskConical className="size-3" /> Test mode
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Send yourself a sample alert to check the bot is linked and the message looks right.
+            Nothing is saved to your requests list.
+          </p>
+          <Button variant="hero" size="xl" disabled={sending} onClick={() => void sendTest()}>
+            {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            Send test alert to Telegram
+          </Button>
+        </div>
+
+        <div className="space-y-3 rounded-xl border border-border p-4">
+          <p className="text-sm font-semibold">Try your own quote link</p>
+          <p className="text-sm text-muted-foreground">
+            This special link fills a request exactly like a customer would, but every request it
+            creates is tagged <span className="font-semibold">TEST</span> — in your requests list and
+            in the Telegram alert — so you never mistake it for a real lead.
+          </p>
+          <p className="font-mono text-xs break-all text-muted-foreground">{testUrl}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link
+                to="/$business_slug"
+                params={{ business_slug: profile.slug }}
+                search={{ test: true }}
+              >
+                <ExternalLink className="size-3.5" /> Open test link
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                void navigator.clipboard.writeText(testUrl);
+                toast.success("Test link copied");
+              }}
+            >
+              <Copy className="size-3.5" /> Copy test link
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

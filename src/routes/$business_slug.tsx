@@ -30,6 +30,8 @@ import {
 } from "@/lib/pricing";
 
 export const Route = createFileRoute("/$business_slug")({
+  validateSearch: (search: Record<string, unknown>): { test?: boolean } =>
+    search["test"] === "1" || search["test"] === true ? { test: true } : {},
   head: ({ params }) => ({
     meta: [
       { title: `Get an instant detailing quote — QuoteFlow` },
@@ -67,6 +69,7 @@ const MAX_PHOTOS = 5;
 
 function QuoteForm() {
   const { business_slug } = Route.useParams();
+  const { test: isTest } = Route.useSearch();
   const [categoryKey, setCategoryKey] = useState<string | null>(null);
   const [vehicleDesc, setVehicleDesc] = useState("");
   const [packageKey, setPackageKey] = useState<string | null>(null);
@@ -171,6 +174,7 @@ function QuoteForm() {
         photo_urls: photoPaths,
         currency,
         estimated_price: quote.total,
+        is_test: !!isTest,
       });
       if (error) throw error;
 
@@ -190,10 +194,13 @@ function QuoteForm() {
           estimate: quote.total,
           notes: notes.trim(),
           photoPaths,
+          isTest: !!isTest,
         },
       }).catch(() => undefined);
 
-      toast.success("Request sent! They'll reach out shortly.");
+      toast.success(
+        isTest ? "Test request sent — check your Telegram." : "Request sent! They'll reach out shortly.",
+      );
       setDone(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not send your request");
@@ -258,6 +265,11 @@ function QuoteForm() {
 
   return (
     <div className="min-h-screen bg-surface pb-32">
+      {isTest && (
+        <div className="bg-foreground px-5 py-2.5 text-center text-xs font-semibold text-background">
+          🧪 Test mode — this request is tagged as a test, not a real customer lead.
+        </div>
+      )}
       <header className="border-b border-border bg-background px-5 py-5">
         <div className="mx-auto flex max-w-md items-center gap-3">
           {profile.logo_url ? (

@@ -93,7 +93,7 @@ function Landing() {
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg">
-              <Link to="/$business_slug" params={{ business_slug: "demo-detailing" }}>
+              <Link to="/$business_slug" params={{ business_slug: "demo-detailing" }} search={{}}>
                 See a live quote form
               </Link>
             </Button>

@@ -10,6 +10,7 @@ type AlertInput = {
   estimate: number;
   notes?: string;
   photoPaths?: string[];
+  isTest?: boolean;
 };
 
 const API = "https://api.telegram.org/bot";
@@ -70,7 +71,9 @@ export const sendQuoteAlert = createServerFn({ method: "POST" })
     ];
 
     const body = [
-      `🚨 <b>NEW QUOTE REQUEST</b>`,
+      data.isTest
+        ? `🧪 <b>TEST REQUEST — not a real customer</b>`
+        : `🚨 <b>NEW QUOTE REQUEST</b>`,
       profile.business_name ? `<i>${esc(profile.business_name)}</i>` : "",
       ``,
       `👤 <b>${esc(data.customerName)}</b>`,
