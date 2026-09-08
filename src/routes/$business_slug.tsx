@@ -69,6 +69,7 @@ const MAX_PHOTOS = 5;
 
 function QuoteForm() {
   const { business_slug } = Route.useParams();
+  const { test: isTest } = Route.useSearch();
   const [categoryKey, setCategoryKey] = useState<string | null>(null);
   const [vehicleDesc, setVehicleDesc] = useState("");
   const [packageKey, setPackageKey] = useState<string | null>(null);
