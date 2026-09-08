@@ -5,6 +5,7 @@ import {
   Check,
   Copy,
   ExternalLink,
+  FlaskConical,
   Image as ImageIcon,
   Link2,
   Loader2,
@@ -47,6 +48,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { sendQuoteAlert } from "@/lib/telegram.functions";
 import { Switch } from "@/components/ui/switch";
 import {
   CURRENCIES,
