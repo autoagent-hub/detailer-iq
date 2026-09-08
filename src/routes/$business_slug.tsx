@@ -265,6 +265,11 @@ function QuoteForm() {
 
   return (
     <div className="min-h-screen bg-surface pb-32">
+      {isTest && (
+        <div className="bg-foreground px-5 py-2.5 text-center text-xs font-semibold text-background">
+          🧪 Test mode — this request is tagged as a test, not a real customer lead.
+        </div>
+      )}
       <header className="border-b border-border bg-background px-5 py-5">
         <div className="mx-auto flex max-w-md items-center gap-3">
           {profile.logo_url ? (
