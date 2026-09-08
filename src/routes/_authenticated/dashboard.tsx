@@ -957,9 +957,16 @@ function QuoteHistory({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {quotes.map((q) => (
-                  <TableRow key={q.id}>
-                    <TableCell className="font-medium">{q.customer_name}</TableCell>
+                {visible.map((q) => (
+                  <TableRow key={q.id} className={q.is_test ? "opacity-70" : undefined}>
+                    <TableCell className="font-medium">
+                      {q.customer_name}
+                      {q.is_test && (
+                        <Badge variant="secondary" className="ml-2 align-middle">
+                          <FlaskConical className="size-3" /> TEST
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <a href={`tel:${q.customer_phone}`} className="text-primary hover:underline">
                         {q.customer_phone}
