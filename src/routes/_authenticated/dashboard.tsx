@@ -270,7 +270,7 @@ function PublicLink({ slug }: { slug: string }) {
         <Copy className="size-3.5" /> Copy link
       </Button>
       <Button asChild variant="ghost" size="sm">
-        <Link to="/$business_slug" params={{ business_slug: slug }}>
+        <Link to="/$business_slug" params={{ business_slug: slug }} search={{}}>
           <ExternalLink className="size-3.5" /> Preview
         </Link>
       </Button>
