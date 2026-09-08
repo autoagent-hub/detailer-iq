@@ -174,6 +174,7 @@ function QuoteForm() {
         photo_urls: photoPaths,
         currency,
         estimated_price: quote.total,
+        is_test: !!isTest,
       });
       if (error) throw error;
 
@@ -193,10 +194,13 @@ function QuoteForm() {
           estimate: quote.total,
           notes: notes.trim(),
           photoPaths,
+          isTest: !!isTest,
         },
       }).catch(() => undefined);
 
-      toast.success("Request sent! They'll reach out shortly.");
+      toast.success(
+        isTest ? "Test request sent — check your Telegram." : "Request sent! They'll reach out shortly.",
+      );
       setDone(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not send your request");
