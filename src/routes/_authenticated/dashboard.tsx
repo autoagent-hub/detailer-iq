@@ -916,13 +916,27 @@ function QuoteHistory({
   services: ServiceItem[];
   categories: VehicleCategory[];
 }) {
+  const [showTests, setShowTests] = useState(true);
+  const testCount = quotes.filter((q) => q.is_test).length;
+  const visible = showTests ? quotes : quotes.filter((q) => !q.is_test);
+
   return (
     <Card className="shadow-card">
-      <CardHeader>
+      <CardHeader className="flex-row items-center justify-between gap-3">
         <CardTitle className="text-base">Quote requests</CardTitle>
+        {testCount > 0 && (
+          <span className="flex items-center gap-2 text-xs text-muted-foreground">
+            Show my {testCount} test{testCount === 1 ? "" : "s"}
+            <Switch
+              checked={showTests}
+              aria-label="Show test requests"
+              onCheckedChange={setShowTests}
+            />
+          </span>
+        )}
       </CardHeader>
       <CardContent className="px-0 sm:px-6">
-        {quotes.length === 0 ? (
+        {visible.length === 0 ? (
           <p className="px-6 pb-2 text-sm text-muted-foreground sm:px-0">
             No requests yet. Share your quote link to start collecting leads.
           </p>
