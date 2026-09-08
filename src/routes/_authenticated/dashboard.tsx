@@ -133,6 +133,7 @@ type Quote = {
   photo_urls: string[];
   currency: string;
   created_at: string;
+  is_test: boolean;
 };
 
 function Dashboard() {
@@ -213,6 +214,7 @@ function Dashboard() {
                 <TabsTrigger value="account">Account</TabsTrigger>
                 <TabsTrigger value="pricing">Pricing</TabsTrigger>
                 <TabsTrigger value="alerts">Alerts</TabsTrigger>
+                <TabsTrigger value="testing">Testing</TabsTrigger>
               </TabsList>
 
               <TabsContent value="requests" className="mt-5">
@@ -239,6 +241,10 @@ function Dashboard() {
                   chatId={profile.telegram_chat_id}
                 />
                 <NotificationSettingsCard profile={profile} />
+              </TabsContent>
+
+              <TabsContent value="testing" className="mt-5 space-y-5">
+                <TestingCard profile={profile} />
               </TabsContent>
             </Tabs>
           </>
